@@ -1,0 +1,118 @@
+---
+title: "Homework 5"
+author: "Dylan Koproski"
+date: "2023-11-08"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = FALSE}
+library(tidyverse)
+library(rvest)
+
+```
+
+
+```{r, message = FALSE}
+file_name =
+  list.files("data", full.names = TRUE)
+
+df_1 =
+  list.files("data", full.names = TRUE) |> 
+  map_dfr(read_csv) |> 
+  bind_cols(id = file_name) |>
+  mutate(group = 
+           case_when(
+             str_detect(file_name, "con") ~ "control",
+             str_detect(file_name, "exp") ~ "experimental"
+             )
+         ) |> 
+  mutate(id_num = 
+           as.integer(
+             str_extract(
+               id, "\\d+")
+             )
+         ) |> 
+  relocate(id_num, group, .before = week_1) |> 
+  select(!id) |> 
+  pivot_longer(cols = c(week_1, week_2, week_3, week_4, week_5, week_6, week_7, week_8),
+               names_to = "time",
+               values_to = "value") |> 
+  mutate(time = 
+          as.integer(
+            str_extract(
+              time, "\\d+")))
+
+```
+Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
+
+```{r}
+df_1_plots =
+  df_1 |> 
+  mutate(subject_id = paste(group, id_num, sep = "_"))
+
+
+
+df_1_plots |> 
+  ggplot(aes(x = time, y = value, group = subject_id, color = group)) + 
+  geom_line() + 
+  labs(
+    title = "Data Value for Participants Over Time by Group",
+    x = "Time (weeks)",
+    y = "Data Value"
+  )
+
+```
+
+
+## Problem 3
+
+```{r}
+sim_norm = function(mu, n = 30, sigma = 5) {
+  
+  sim_data = tibble(
+    x = rnorm(mean = mu, n = n, sd = sigma),
+  )
+  
+  sim_data |>  
+    t.test(mu = mu, alternative = "two.sided", conf.level = 0.95) |> 
+    broom::tidy() |> 
+    select(p.value, estimate) |> 
+    rename(mu_hat = estimate)
+}
+
+
+
+sim_results_df = 
+  expand_grid(
+    mu = c(0,1,2,3,4,5,6),
+    iter = 1:5
+  ) |> 
+  mutate(
+    estimate_df = map(mu, sim_norm)
+  ) |> 
+  unnest(estimate_df)
+
+```
+
+
+```{r}
+### For mu = 0
+
+output = vector("list", 100)
+
+for (i in 1:5000) {
+  output[[i]] = sim_norm(0)
+}
+
+sim_results_0 = 
+  bind_rows(output) 
+
+### For mu = 
+```
+
+
+
