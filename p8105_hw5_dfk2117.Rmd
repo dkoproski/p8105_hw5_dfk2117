@@ -14,20 +14,23 @@ library(tidyverse)
 library(rvest)
 library(plotly)
 ```
+## Problem 1
 
+## Problem 2
+### Preparing Data
 
 ```{r, message = FALSE}
 file_name =
   list.files("data", full.names = TRUE)
 
 df_1 =
-  list.files("data", full.names = TRUE) |> 
+  file_name |> 
   map_dfr(read_csv) |> 
   bind_cols(id = file_name) |>
   mutate(group = 
            case_when(
-             str_detect(file_name, "con") ~ "control",
-             str_detect(file_name, "exp") ~ "experimental"
+             str_detect(id, "con") ~ "control",
+             str_detect(id, "exp") ~ "experimental"
              )
          ) |> 
   mutate(id_num = 
@@ -48,6 +51,16 @@ df_1 =
 
 ```
 
+### Printing data
+
+```{r}
+df_1 |> 
+  head()
+```
+
+In order to prepare the dataframe, I used the `list_files` function to first extract the names of the files from the `/data` folder. I then used `map_dfr(read_csv)` to read the csv files in the list. I then used `mutate` with `case_when` and `str_detect` to create a `group` variable by detecting either "con" or "exp" in the file name variable. This distinguishes whether each individual is in the control or experimental group. I used `mutate` again with `str_extract` to create an `id_num` variable by pulling the identification number out of the file name for each individual. I used `relocate` to bring these new variables to the front of the dataset. I dropped the defunct `id` variable with `select`. Finally, I used `pivot_longer` to collapse each of the week variables into one `time` variables with a corresponding `value`. Lastly, I simplified each time interval using `mutate` and `string_extract` once more to just have the number of the week.
+
+### Creating plot
 
 ```{r}
 df_1_plots =
@@ -66,9 +79,11 @@ df_1_plots |>
   )
 
 ```
-
+In order to make the specified spaghetti plot, I needed to `mutate` one more variable with the subjects group and id number within their group. I then used `ggplot` with `x = time`, `y = value` and `geom_line()` to create a spaghetti plot with lines for each individual colored by control or treatment group. Based on the plot it appears that the experimental group generally has higher data values than that of the control group. This difference becomes more pronounced over time, with there not being too much difference in week 1 and 2, while in weeks 3-8 the data value of the experimental group grows.
 
 ## Problem 3
+
+### Creating the function
 
 ```{r}
 set.seed(2023)
@@ -98,6 +113,9 @@ sim_results_df =
 
 ```
 
+In order to simulate 5000 repetitions of a normal distribution with `n=30` `sigma=5` and `mu = {0,1,2,3,4,5,6}`, I created a function similar to the one demonstrated in class. The function has `n` and `sigma` fixed and takes an input for `mu`. Using this, it generates a sample of size 30 from the normal distribution using `rnorm`. Then, using the simulated data, it performs a 2-sided `t.test` at the 95% confidence level. Then, the function returns the `p.value` and the `estimate` (mu_hat) from the t.test. The result is the sample mean and corresponding p-value for each sample. Then, using `expand_grid` similarly to , I repeated the process for 5000 iterations for each of the specified mu values. 
+
+### Plotting the proportion of rejections
 
 ```{r}
 sim_results_power_df =
@@ -119,21 +137,25 @@ sim_results_power_df |>
   
 ```
 
+To create the plot, I took the results from the simulation and created a new logical variable `reject` with `mutate` that returns `TRUE` when the p-value is less than the alpha of 0.05 and `FALSE` when it is greater. I then count the number of rejections for each mu and create a `prop` variable with `mutate`. I then create a column plot using `ggplot` with the proportion of rejections on the y-axis and the true value of mu on the x-axis. Based on the plot, the proportion of times the null is rejected increases as the true value of mu increases. For mu = 5, the value is effectively 1 and for mu = 6, the value is 1. This means that power increases with effect size.
+
 
 ```{r}
-mean_estimates_df <- sim_results_df |> 
+mean_estimates_df =
+  sim_results_df |> 
   group_by(mu) |> 
   summarise(mean_mu_hat = mean(mu_hat)) |> 
   mutate(df = 'All Data')
 
-rejected_estimates_df <- sim_results_df |> 
-  mutate(reject = p.value < 0.05) |> 
+rejected_estimates_df = 
+  sim_results_df |> 
   group_by(mu) |> 
   filter(reject == TRUE) |> 
   summarise(mean_mu_hat = mean(mu_hat)) |> 
   mutate(df = 'Rejected Null')
 
-plot_3_df <- bind_rows(mean_estimates_df, rejected_estimates_df)
+plot_3_df =
+  bind_rows(mean_estimates_df, rejected_estimates_df)
 
 plot_3_df |> 
   ggplot(aes(x = mu, y = mean_mu_hat, color = df)) +
@@ -148,3 +170,4 @@ plot_3_df |>
        color = "Data")
 ```
 
+I needed to make 2 new datasets for this plot. First, I just calculated the mean sample means for each true value of mu using `group_by` to separate the data by each mu, then `summarise` to get the mean. For the rejected mean estimates, I performed the same process except I used `filter` to select only values with `reject == TRUE`. Lastly, I created a variable called `df` in each of these sets to denote if they are from `All Data` or from `Rejected Null`. I then used `ggplot` to plot the true value of mu on the x against the mean estimate of mu on the y. I made aesthetic changes as well such as including a legend, axis labels and numbers on the line plot itself to facilitate a more accurate comparison. From the plot, it appears that the mean estimate of mu is higher in the rejected null dataset than in all of the data for `mu = {0,1,2,3}. As it approaches 4,5,6, this difference becomes much less pronounced. This is because at low true values of mu, the data needs to be further from the true value of mu for the null hypothesis to be rejected. As the true value becomes higher, almost all of the samples have a mu that is significantly different from 0.
