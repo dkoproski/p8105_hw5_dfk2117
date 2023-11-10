@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, message = FALSE}
 library(tidyverse)
 library(rvest)
-
+library(plotly)
 ```
 
 
@@ -47,7 +47,7 @@ df_1 =
               time, "\\d+")))
 
 ```
-Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
+
 
 ```{r}
 df_1_plots =
@@ -71,6 +71,7 @@ df_1_plots |>
 ## Problem 3
 
 ```{r}
+set.seed(2023)
 sim_norm = function(mu, n = 30, sigma = 5) {
   
   sim_data = tibble(
@@ -78,18 +79,17 @@ sim_norm = function(mu, n = 30, sigma = 5) {
   )
   
   sim_data |>  
-    t.test(mu = mu, alternative = "two.sided", conf.level = 0.95) |> 
+    t.test(mean = 0, alternative = "two.sided", conf.level = 0.95) |> 
     broom::tidy() |> 
     select(p.value, estimate) |> 
     rename(mu_hat = estimate)
 }
 
 
-
 sim_results_df = 
   expand_grid(
     mu = c(0,1,2,3,4,5,6),
-    iter = 1:5
+    iter = 1:5000
   ) |> 
   mutate(
     estimate_df = map(mu, sim_norm)
@@ -100,19 +100,51 @@ sim_results_df =
 
 
 ```{r}
-### For mu = 0
+sim_results_power_df =
+  sim_results_df |> 
+  mutate(reject = case_when(
+    p.value > 0.05 ~ FALSE,
+    p.value < 0.05 ~ TRUE
+  )) |> 
+  group_by(mu) |> 
+  summarise(count = sum(reject)) |> 
+  mutate(prop = count / 5000)
+  
 
-output = vector("list", 100)
-
-for (i in 1:5000) {
-  output[[i]] = sim_norm(0)
-}
-
-sim_results_0 = 
-  bind_rows(output) 
-
-### For mu = 
+sim_results_power_df |> 
+  ggplot(aes(x = mu, y = prop, fill = mu)) +
+  geom_col() +
+  labs(title = "Proportiobn of Rejected Hypotheses for each Mu",
+       x = "True Value of Mu", y = "Proportion Rejected")
+  
 ```
 
 
+```{r}
+mean_estimates_df <- sim_results_df |> 
+  group_by(mu) |> 
+  summarise(mean_mu_hat = mean(mu_hat)) |> 
+  mutate(df = 'All Data')
+
+rejected_estimates_df <- sim_results_df |> 
+  mutate(reject = p.value < 0.05) |> 
+  group_by(mu) |> 
+  filter(reject == TRUE) |> 
+  summarise(mean_mu_hat = mean(mu_hat)) |> 
+  mutate(df = 'Rejected Null')
+
+plot_3_df <- bind_rows(mean_estimates_df, rejected_estimates_df)
+
+plot_3_df |> 
+  ggplot(aes(x = mu, y = mean_mu_hat, color = df)) +
+  geom_line() +
+  geom_text(aes(label = round(mean_mu_hat, 2)), 
+            vjust = -1, 
+            hjust = 0.5, 
+            size = 3.5) + 
+  scale_color_manual(values = c('All Data' = "blue", 'Rejected Null' = "red")) +
+  labs(title = "Mean Estimates and Rejections against True Value of Mu",
+       x = "True Value of Mu", y = "Mean Estimate of Mu",
+       color = "Data")
+```
 
