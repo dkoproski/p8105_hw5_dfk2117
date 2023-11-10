@@ -149,6 +149,10 @@ mean_estimates_df =
 
 rejected_estimates_df = 
   sim_results_df |> 
+  mutate(reject = case_when(
+  p.value > 0.05 ~ FALSE,
+  p.value < 0.05 ~ TRUE
+  )) |> 
   group_by(mu) |> 
   filter(reject == TRUE) |> 
   summarise(mean_mu_hat = mean(mu_hat)) |> 
