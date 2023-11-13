@@ -12,9 +12,25 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, message = FALSE}
 library(tidyverse)
 library(rvest)
-library(plotly)
 ```
 ## Problem 1
+```{r}
+homicide_df =
+  read_csv("data/homicide-data.csv")
+
+head(homicide_df)
+```
+
+The raw dataset contains 52179 rows and 12 variables: `uid` which is an identifier variable with the first 3 letters of the city and what I presume is a numeric identifier, the `reported_date` variable just gives the data of the homicide, `victim_last`, `victim_first`, `victim_race`, `victim_age` and `victim_sex` gives demographic information on the victim. `city`, `state`, `lat` and `lon` gives the location of the homicide. Finally, `disposition` shows whether or not the case has been closed.
+
+```{r}
+homicide_df_tidy =
+  homicide_df |> 
+  mutate(city_state = paste(city, state, sep = ", ")) |> 
+  group_by(city_state) |> 
+  summarise(count = count())
+```
+
 
 ## Problem 2
 ### Preparing Data
