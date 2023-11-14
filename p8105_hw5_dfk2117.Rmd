@@ -14,11 +14,12 @@ library(tidyverse)
 library(rvest)
 ```
 ## Problem 1
+
+This code chunk reads the dataset from the provided github repository. 
+
 ```{r}
 homicide_df =
-  read_csv("data/homicide-data.csv")
-
-head(homicide_df)
+  read_csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv")
 ```
 
 The raw dataset contains 52179 rows and 12 variables: `uid` which is an identifier variable with the first 3 letters of the city and what I presume is a numeric identifier, the `reported_date` variable just gives the data of the homicide, `victim_last`, `victim_first`, `victim_race`, `victim_age` and `victim_sex` gives demographic information on the victim. `city`, `state`, `lat` and `lon` gives the location of the homicide. Finally, `disposition` shows whether or not the case has been closed.
@@ -26,11 +27,60 @@ The raw dataset contains 52179 rows and 12 variables: `uid` which is an identifi
 ```{r}
 homicide_df_tidy =
   homicide_df |> 
-  mutate(city_state = paste(city, state, sep = ", ")) |> 
+  mutate(city_state = paste(city, state, sep = ", "))
+
+disposition_df =
+  homicide_df_tidy |> 
   group_by(city_state) |> 
-  summarise(count = count())
+  summarise (n_homicides = n(),
+  n_unsolved = sum(disposition == "Closed without arrest" | disposition == "Open/No arrest"))
+
+head(disposition_df)
 ```
 
+This code chunk creates a `city_state` variable and counts the number of unsolved cases and the number of solved cases and puts them into a dataframe `disposition_df`. The `city_state` variable is made using the `mutate` function along with the `paste` function. Further, `summarise` is used to calculate the total number of rows, `n_homicides`, and the total number of rows with disposition "Closed without arrest" and "Open/No arrest", `n_unsolved`.
+
+```{r}
+test_baltimore_df =
+  disposition_df |> 
+  filter(city_state == "Baltimore, MD")
+
+baltimore_results_df = 
+  prop.test(x = test_baltimore_df$n_unsolved, n = test_baltimore_df$n_homicides) |> 
+  broom::tidy() |> 
+  select(estimate, conf.low, conf.high)
+
+baltimore_results_df
+```
+
+The above chunk first filters out the `city_state` "Baltimore, MD", then performs a prop test, uses `broom::tidy()` to make a tibble out of the prop test, then selects the estimated proportion, the lower bound of the confidence interval and the upper bound of the confidence interval.
+
+
+For this next part, I had trouble with my code, so I revised using the solution code.
+
+```{r}
+test_results = 
+  disposition_df |> 
+  mutate(
+    prop_tests = map2(n_unsolved, n_homicides, \(x, y) prop.test(x = x, n = y)),
+    tidy_tests = map(prop_tests, broom::tidy)) |>  
+  select(-prop_tests) |>  
+  unnest(tidy_tests) |>  
+  select(city_state, estimate, conf.low, conf.high) |>  
+  mutate(city_state = fct_reorder(city_state, estimate))
+```
+
+This code chunk performs a prop test for each `city_state`. It selects only the `city_state`, `estimate`, `conf.low` and `conf.high` variables.
+
+```{r}
+test_results |>  
+  ggplot(aes(x = city_state, y = estimate)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+This last code chunk creates the deisred `geom_point` plot which plots the `city_state` against the `estimate` value for each state. It them uses `geom_errorbar` to put error bars corresponding to the upper and lower bounds of the confidence interval.
 
 ## Problem 2
 ### Preparing Data
